@@ -98,4 +98,17 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintWidth_percent="0.1" />
 
+    <FrameLayout
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent" >
+
+        <SurfaceView
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent" />
+
+        <dji.v5.ux.core.widget.fpv.DetImageView
+            android:id="@+id/image_view_det"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent" />
+    </FrameLayout>
 </merge>

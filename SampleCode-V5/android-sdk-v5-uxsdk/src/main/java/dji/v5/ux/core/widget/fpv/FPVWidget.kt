@@ -37,6 +37,9 @@ import androidx.annotation.FloatRange
 import androidx.annotation.StyleRes
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.content.res.use
+import dji.sdk.keyvalue.value.mop.PipelineDeviceType
+import dji.sdk.keyvalue.value.mop.TransmissionControlType
+import dji.v5.common.error.DJIPipeLineError
 import dji.v5.common.video.channel.VideoChannelType
 import dji.v5.common.video.decoder.DecoderOutputMode
 import dji.v5.common.video.decoder.DecoderState
@@ -44,9 +47,14 @@ import dji.v5.common.video.decoder.VideoDecoder
 import dji.v5.common.video.interfaces.IVideoDecoder
 import dji.v5.common.video.stream.PhysicalDevicePosition
 import dji.v5.common.video.stream.StreamSource
+import dji.v5.manager.mop.DataResult
+import dji.v5.manager.mop.Pipeline
+import dji.v5.manager.mop.PipelineManager
+import dji.v5.utils.common.DJIExecutor
 import dji.v5.utils.common.DisplayUtil
 import dji.v5.utils.common.JsonUtil
 import dji.v5.utils.common.LogUtils
+import dji.v5.utils.common.ToastUtils
 import dji.v5.ux.R
 import dji.v5.ux.core.base.DJISDKModel
 import dji.v5.ux.core.base.SchedulerProvider
@@ -60,6 +68,9 @@ import dji.v5.ux.core.util.RxUtil
 import dji.v5.ux.core.widget.fpv.FPVWidget.ModelState
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.functions.Consumer
+import java.lang.StringBuilder
+import java.util.Random
+import java.util.concurrent.ExecutorService
 
 private const val TAG = "FPVWidget"
 private const val ORIGINAL_SCALE = 1f
@@ -80,10 +91,18 @@ open class FPVWidget @JvmOverloads constructor(
     private val fpvSurfaceView: SurfaceView = findViewById(R.id.surface_view_fpv)
     private val cameraNameTextView: TextView = findViewById(R.id.textview_camera_name)
     private val cameraSideTextView: TextView = findViewById(R.id.textview_camera_side)
+    private val detImageView: DetImageView = findViewById(R.id.image_view_det);
     private val verticalOffset: Guideline = findViewById(R.id.vertical_offset)
     private val horizontalOffset: Guideline = findViewById(R.id.horizontal_offset)
     private var fpvStateChangeResourceId: Int = INVALID_RESOURCE
     private var videoDecoder: IVideoDecoder? = null
+    private val executorService: ExecutorService = DJIExecutor.getExecutorFor(DJIExecutor.Purpose.URGENT)
+    private var pipelineConnected: Boolean = false
+    private var pipelineID: Int = 49155
+    private val pipelineDeviceType: PipelineDeviceType = PipelineDeviceType.ONBOARD
+    private val transmissionControlType: TransmissionControlType = TransmissionControlType.STABLE
+    private var pipeline: Pipeline? = null
+    private val data = ByteArray(400)
 
     private val widgetModel: FPVWidgetModel = FPVWidgetModel(
         DJISDKModel.getInstance(), ObservableInMemoryKeyedStore.getInstance(), FlatCameraModule()
@@ -275,6 +294,9 @@ open class FPVWidget @JvmOverloads constructor(
             widgetModel.setup()
         }
         initializeListeners()
+        if (!pipelineConnected) {
+            connectPipeline()
+        }
     }
 
     private fun initializeListeners() {
@@ -287,6 +309,9 @@ open class FPVWidget @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
+        if (pipelineConnected) {
+            disconnectPipeline()
+        }
         destroyListeners()
         if (!isInEditMode) {
             widgetModel.cleanup()
@@ -391,6 +416,79 @@ open class FPVWidget @JvmOverloads constructor(
 
     fun setSurfaceViewZOrderMediaOverlay(isMediaOverlay:Boolean){
         fpvSurfaceView.setZOrderMediaOverlay(isMediaOverlay)
+    }
+
+    fun connectPipeline() {
+        val error = PipelineManager.getInstance().connectPipeline(pipelineID, pipelineDeviceType, transmissionControlType)
+        if (error == null) {
+            pipeline = PipelineManager.getInstance().pipelines[pipelineID]
+            pipelineConnected = true
+            ToastUtils.showToast("connect to $pipelineID success")
+            executorService.execute {
+                while (pipelineConnected) {
+                    readFromPipeline()
+                }
+            }
+        } else {
+            ToastUtils.showToast("connect to $pipelineID fail: $error")
+        }
+    }
+
+    private fun disconnectPipeline() {
+        pipeline?.let {
+            val error = PipelineManager.getInstance().disconnectPipeline(pipelineID, pipelineDeviceType, transmissionControlType)
+            if (error == null) {
+                pipelineConnected = false;
+                ToastUtils.showToast("disconnect from $pipelineID success")
+            } else {
+                ToastUtils.showToast("disconnect from $pipelineID fail: $error")
+            }
+        }
+    }
+
+    private var rand = Random()
+    fun readFromPipeline() {
+        val result = pipeline?.readData(data) ?: DataResult()
+        // val len = result.length
+        val len = rand.nextInt(4)
+        if (len < 0) {
+            if (result.error.errorCode().equals(DJIPipeLineError.TIMEOUT)) {
+                ToastUtils.showToast("read timeout")
+            } else {
+                ToastUtils.showToast("read error: $result")
+                disconnectPipeline()
+            }
+            return
+        }
+
+        ToastUtils.showToast("read $len bytes")
+        LogUtils.i("read $len bytes")
+        detImageView.clearBoxes()
+        if (len > 0) {
+            // val content = String(data);
+            val sb = StringBuilder()
+            for (i in 0 until len) {
+                val x = rand.nextInt(detImageView.width)
+                val y = rand.nextInt(detImageView.height)
+                sb.append("$x,$y,200,200,0.9;")
+            }
+            sb.deleteCharAt(sb.length-1)
+            val content = sb.toString()
+            LogUtils.i(content)
+            // updateCameraName(content)
+            val boxes = content.split(";").toTypedArray()
+            for (box in boxes) {
+                val values = box.split(",").toTypedArray()
+                val x = values[0].toInt()
+                val y = values[1].toInt()
+                val w = values[2].toInt()
+                val h = values[3].toInt()
+                val prob = values[4].toDouble()
+                detImageView.addBox(x, y, w, h, prob)
+            }
+        }
+        detImageView.invalidate()
+        detImageView.draw()
     }
 
     //endregion

@@ -82,7 +82,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
 
     protected FPVWidget primaryFpvWidget;
     protected FPVInteractionWidget fpvInteractionWidget;
-    protected FPVWidget secondaryFPVWidget;
     protected SystemStatusListPanelWidget systemStatusListPanelWidget;
     protected SimulatorControlWidget simulatorControlWidget;
     protected LensControlWidget lensControlWidget;
@@ -107,7 +106,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
     private final DataProcessor<CameraSource> cameraSourceProcessor = DataProcessor.create(new CameraSource(PhysicalDevicePosition.UNKNOWN,
             CameraLensType.UNKNOWN));
     private VideoChannelStateChangeListener primaryChannelStateListener = null;
-    private VideoChannelStateChangeListener secondaryChannelStateListener = null;
     //endregion
 
     //region Lifecycle
@@ -121,7 +119,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
 //        settingWidget = topBarPanel.getSettingWidget();
         primaryFpvWidget = findViewById(R.id.widget_primary_fpv);
         fpvInteractionWidget = findViewById(R.id.widget_fpv_interaction);
-        secondaryFPVWidget = findViewById(R.id.widget_secondary_fpv);
         systemStatusListPanelWidget = findViewById(R.id.widget_panel_system_status_list);
         simulatorControlWidget = findViewById(R.id.widget_simulator_control);
         lensControlWidget = findViewById(R.id.widget_lens_control);
@@ -150,10 +147,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
             cameraSourceProcessor.onNext(new CameraSource(devicePosition, lensType));
         });
 
-        //小surfaceView放置在顶部，避免被大的遮挡
-        secondaryFPVWidget.setSurfaceViewZOrderOnTop(true);
-        secondaryFPVWidget.setSurfaceViewZOrderMediaOverlay(true);
-
         mapWidget.initAMap(map -> {
             // map.setOnMapClickListener(latLng -> onViewClick(mapWidget));
             DJIUiSettings uiSetting = map.getUiSettings();
@@ -165,7 +158,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
     }
 
     private void initClickListener() {
-        secondaryFPVWidget.setOnClickListener(v -> swapVideoSource());
         initChannelStateListener();
 
         if (settingWidget != null) {
@@ -257,24 +249,19 @@ public class DefaultLayoutActivity extends AppCompatActivity {
 
         //没有数据
         if (streamSources.isEmpty()) {
-            secondaryFPVWidget.setVisibility(View.GONE);
             return;
         }
 
         //仅一路数据
         if (streamSources.size() == 1) {
             //这里仅仅做Widget的显示与否，source和channel的获取放到widget中
-            secondaryFPVWidget.setVisibility(View.GONE);
             return;
         }
-        secondaryFPVWidget.setVisibility(View.VISIBLE);
     }
 
     private void initChannelStateListener() {
         IVideoChannel primaryChannel =
                 MediaDataCenter.getInstance().getVideoStreamManager().getAvailableVideoChannel(VideoChannelType.PRIMARY_STREAM_CHANNEL);
-        IVideoChannel secondaryChannel =
-                MediaDataCenter.getInstance().getVideoStreamManager().getAvailableVideoChannel(VideoChannelType.SECONDARY_STREAM_CHANNEL);
         if (primaryChannel != null) {
             primaryChannelStateListener = (from, to) -> {
                 StreamSource primaryStreamSource = primaryChannel.getStreamSource();
@@ -284,27 +271,13 @@ public class DefaultLayoutActivity extends AppCompatActivity {
             };
             primaryChannel.addVideoChannelStateChangeListener(primaryChannelStateListener);
         }
-        if (secondaryChannel != null) {
-            secondaryChannelStateListener = (from, to) -> {
-                StreamSource secondaryStreamSource = secondaryChannel.getStreamSource();
-                if (VideoChannelState.ON == to && secondaryStreamSource != null) {
-                    runOnUiThread(() -> secondaryFPVWidget.updateVideoSource(secondaryStreamSource, VideoChannelType.SECONDARY_STREAM_CHANNEL));
-                }
-            };
-            secondaryChannel.addVideoChannelStateChangeListener(secondaryChannelStateListener);
-        }
     }
 
     private void removeChannelStateListener() {
         IVideoChannel primaryChannel =
                 MediaDataCenter.getInstance().getVideoStreamManager().getAvailableVideoChannel(VideoChannelType.PRIMARY_STREAM_CHANNEL);
-        IVideoChannel secondaryChannel =
-                MediaDataCenter.getInstance().getVideoStreamManager().getAvailableVideoChannel(VideoChannelType.SECONDARY_STREAM_CHANNEL);
         if (primaryChannel != null) {
             primaryChannel.removeVideoChannelStateChangeListener(primaryChannelStateListener);
-        }
-        if (secondaryChannel != null) {
-            secondaryChannel.removeVideoChannelStateChangeListener(secondaryChannelStateListener);
         }
     }
 
@@ -378,15 +351,6 @@ public class DefaultLayoutActivity extends AppCompatActivity {
      * Swap the video sources of the FPV and secondary FPV widgets.
      */
     private void swapVideoSource() {
-        VideoChannelType primaryVideoChannel = primaryFpvWidget.getVideoChannelType();
-        StreamSource primaryStreamSource = primaryFpvWidget.getStreamSource();
-        VideoChannelType secondaryVideoChannel = secondaryFPVWidget.getVideoChannelType();
-        StreamSource secondaryStreamSource = secondaryFPVWidget.getStreamSource();
-        //两个source都存在的情况下才进行切换
-        if (secondaryStreamSource != null && primaryStreamSource != null) {
-            primaryFpvWidget.updateVideoSource(secondaryStreamSource, secondaryVideoChannel);
-            secondaryFPVWidget.updateVideoSource(primaryStreamSource, primaryVideoChannel);
-        }
     }
 
     private void updateInteractionEnabled() {
