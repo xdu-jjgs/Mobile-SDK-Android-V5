@@ -370,6 +370,7 @@
         See {@link dji.v5.ux.core.widget.fpv.FPVWidget.setCameraNameStateChangeCallback}
         and {@link dji.v5.ux.cameracore.widget.fpvinteraction.FPVInteractionWidget}. -->
         <attr name="uxsdk_onStateChange" />
+        <attr name="uxsdk_detectionEnabled" format="boolean" />
     </declare-styleable>
 
     <declare-styleable name="RadarWidget">

@@ -154,6 +154,16 @@ open class FPVWidget @JvmOverloads constructor(
             centerPointView.visibility = if (isCenterPointEnabled) View.VISIBLE else View.GONE
         }
 
+    var isDetectionEnabled = false
+        set(value) {
+            field = value
+        }
+
+    var isDrawEnabled = false
+        set(value) {
+            field = value
+        }
+
     /**
      * The text color state list of the camera name text view
      */
@@ -297,7 +307,7 @@ open class FPVWidget @JvmOverloads constructor(
             widgetModel.setup()
         }
         initializeListeners()
-        if (!pipelineConnected) {
+        if (isDetectionEnabled && !pipelineConnected) {
             connectPipeline()
         }
     }
@@ -312,7 +322,7 @@ open class FPVWidget @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
-        if (pipelineConnected) {
+        if (isDetectionEnabled && pipelineConnected) {
             disconnectPipeline()
         }
         destroyListeners()
@@ -399,6 +409,14 @@ open class FPVWidget @JvmOverloads constructor(
             changeVideoDecoder(channelType)
         }
         videoChannelType = channelType
+        if (isDetectionEnabled && pipelineConnected) {
+            isDrawEnabled = !isDrawEnabled
+            if (isDrawEnabled) {
+                startReadDataTimer()
+            } else {
+                stopReadDataTimer()
+            }
+        }
     }
 
     fun getStreamSource() = widgetModel.streamSource
@@ -689,6 +707,9 @@ open class FPVWidget @JvmOverloads constructor(
             }
             typedArray.getResourceIdAndUse(R.styleable.FPVWidget_uxsdk_onStateChange) {
                 fpvStateChangeResourceId = it
+            }
+            typedArray.getBooleanAndUse(R.styleable.FPVWidget_uxsdk_detectionEnabled, false) {
+                isDetectionEnabled = it
             }
         }
     }

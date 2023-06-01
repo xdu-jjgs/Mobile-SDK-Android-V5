@@ -51,7 +51,8 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:uxsdk_cameraNameTextSize="14dp"
                 app:uxsdk_cameraSideTextSize="14dp"
-                app:uxsdk_videoChannelType="primaryStreamChannel">
+                app:uxsdk_videoChannelType="primaryStreamChannel"
+                app:uxsdk_detectionEnabled="true">
 
                 <dji.v5.ux.cameracore.widget.fpvinteraction.FPVInteractionWidget
                     android:id="@+id/widget_fpv_interaction"
@@ -61,6 +62,21 @@
                     tools:layout_editor_absoluteY="0dp" />
             </dji.v5.ux.core.widget.fpv.FPVWidget>
 
+            <dji.v5.ux.core.widget.fpv.FPVWidget
+                android:id="@+id/widget_secondary_fpv"
+                android:layout_width="@dimen/uxsdk_mini_map_width"
+                android:layout_height="@dimen/uxsdk_mini_map_height"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_bias="0.04"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_bias="0.18"
+                app:uxsdk_cameraNameTextSize="8dp"
+                app:uxsdk_cameraSideTextSize="8dp"
+                app:uxsdk_interactionEnabled="false"
+                app:uxsdk_sourceCameraNameVisibility="true"
+                app:uxsdk_videoChannelType="secondaryStreamChannel" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <dji.v5.ux.core.panel.topbar.TopBarPanelWidget
