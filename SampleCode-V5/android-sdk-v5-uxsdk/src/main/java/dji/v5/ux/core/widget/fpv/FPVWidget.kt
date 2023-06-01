@@ -407,16 +407,16 @@ open class FPVWidget @JvmOverloads constructor(
         widgetModel.streamSource = source
         if (videoChannelType != channelType) {
             changeVideoDecoder(channelType)
-        }
-        videoChannelType = channelType
-        if (isDetectionEnabled && pipelineConnected) {
-            isDrawEnabled = !isDrawEnabled
-            if (isDrawEnabled) {
-                startReadDataTimer()
-            } else {
-                stopReadDataTimer()
+            if (isDetectionEnabled && pipelineConnected) {
+                isDrawEnabled = !isDrawEnabled
+                if (isDrawEnabled) {
+                    startReadDataTimer()
+                } else {
+                    stopReadDataTimer()
+                }
             }
         }
+        videoChannelType = channelType
     }
 
     fun getStreamSource() = widgetModel.streamSource
@@ -710,6 +710,7 @@ open class FPVWidget @JvmOverloads constructor(
             }
             typedArray.getBooleanAndUse(R.styleable.FPVWidget_uxsdk_detectionEnabled, false) {
                 isDetectionEnabled = it
+                isDrawEnabled = it
             }
         }
     }

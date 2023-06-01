@@ -27,6 +27,7 @@
     android:id="@+id/root_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:keepScreenOn="true"
     tools:context="dji.v5.ux.sample.showcase.defaultlayout.DefaultLayoutActivity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -76,7 +77,8 @@
                 app:uxsdk_cameraSideTextSize="8dp"
                 app:uxsdk_interactionEnabled="false"
                 app:uxsdk_sourceCameraNameVisibility="true"
-                app:uxsdk_videoChannelType="secondaryStreamChannel" />
+                app:uxsdk_videoChannelType="secondaryStreamChannel"
+                app:uxsdk_detectionEnabled="false" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <dji.v5.ux.core.panel.topbar.TopBarPanelWidget
