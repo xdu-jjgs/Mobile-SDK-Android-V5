@@ -17,14 +17,16 @@ public class DetImageView extends ImageView {
         int y;
         int w;
         int h;
-        double p;
+        int p;
+        String s;
 
-        public DetBox(int x, int y, int w, int h, double p) {
+        public DetBox(int x, int y, int w, int h, int p, String s) {
             this.x = x;
             this.y = y;
             this.w = w;
             this.h = h;
             this.p = p;
+            this.s = s;
         }
     }
 
@@ -36,9 +38,9 @@ public class DetImageView extends ImageView {
     private Paint paint = new Paint();
     {
         paint.setAntiAlias(true);
-        paint.setColor(Color.RED);
+        paint.setColor(Color.YELLOW);
         paint.setStyle(Style.STROKE);
-        paint.setStrokeWidth(2.5f);
+        paint.setStrokeWidth(4.5f);
         paint.setTextSize(40);
         paint.setAlpha(100);
     };
@@ -50,14 +52,14 @@ public class DetImageView extends ImageView {
         for (int i = 0; i < boxes.size(); i++) {
             DetBox box = boxes.get(i);
             canvas.drawRect(new Rect(box.x, box.y, box.x + box.w, box.y + box.h), paint);
-            canvas.drawText(String.format("disease: %.2f", box.p), box.x, box.y - 10, paint);
+            canvas.drawText(String.format("%s: %d%%", box.s, box.p), box.x, box.y - 10, paint);
         }
     }
     public void clearBoxes() {
         boxes.clear();
     }
-    public void addBox(int x, int y, int w, int h, double p) {
-        boxes.add(new DetBox(x, y, w, h, p));
+    public void addBox(int x, int y, int w, int h, int p, String s) {
+        boxes.add(new DetBox(x, y, w, h, p, s));
     }
     public void draw() {
         this.onDraw(canvas);

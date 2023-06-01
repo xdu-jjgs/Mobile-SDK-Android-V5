@@ -67,14 +67,17 @@ import dji.v5.ux.core.ui.GridLineView
 import dji.v5.ux.core.util.RxUtil
 import dji.v5.ux.core.widget.fpv.FPVWidget.ModelState
 import io.reactivex.rxjava3.core.Flowable
+import io.reactivex.rxjava3.disposables.Disposable
 import io.reactivex.rxjava3.functions.Consumer
-import java.lang.StringBuilder
-import java.util.Random
-import java.util.concurrent.ExecutorService
+import io.reactivex.rxjava3.schedulers.Schedulers
+import java.util.concurrent.TimeUnit
 
 private const val TAG = "FPVWidget"
 private const val ORIGINAL_SCALE = 1f
 private const val LANDSCAPE_ROTATION_ANGLE = 0
+// private val LABELS = listOf("病虫害")
+private val LABELS = listOf("人", "自行车", "汽车", "摩托车", "飞机", "公共汽车", "火车", "卡车", "船", "交通灯", "消防栓", "停车标志", "停车计时器", "长凳", "鸟", "猫", "狗", "马", "羊", "牛", "大象", "熊", "斑马", "长颈鹿", "背包", "雨伞", "手提包", "领带", "手提箱", "飞盘", "滑雪板", "滑雪板", "运动球", "风筝", "棒球棒", "棒球手套", "滑板", "冲浪板", "网球拍", "瓶子", "酒杯", "杯子", "叉子", "刀子", "勺子", "碗", "香蕉", "苹果", "三明治", "橘子", "西兰花", "胡萝卜", "热狗", "披萨", "甜甜圈", "蛋糕", "椅子", "沙发", "盆栽", "床", "餐桌", "厕所", "电视机", "笔记本电脑", "鼠标", "遥控器", "键盘", "手机", "微波炉", "烤箱", "烤面包机", "水槽", "冰箱", "书本", "时钟", "花瓶", "剪刀", "泰迪熊", "吹风机", "牙刷")
+// private val LABELS = listOf("行人", "人", "自行车", "小汽车", "货车", "卡车", "三轮车", "遮阳篷三轮车", "公共汽车", "摩托车")
 
 /**
  * This widget shows the video feed from the camera.
@@ -96,13 +99,13 @@ open class FPVWidget @JvmOverloads constructor(
     private val horizontalOffset: Guideline = findViewById(R.id.horizontal_offset)
     private var fpvStateChangeResourceId: Int = INVALID_RESOURCE
     private var videoDecoder: IVideoDecoder? = null
-    private val executorService: ExecutorService = DJIExecutor.getExecutorFor(DJIExecutor.Purpose.URGENT)
+    private var mReadFromPipelineDisposable: Disposable? = null
     private var pipelineConnected: Boolean = false
     private var pipelineID: Int = 49155
     private val pipelineDeviceType: PipelineDeviceType = PipelineDeviceType.ONBOARD
-    private val transmissionControlType: TransmissionControlType = TransmissionControlType.STABLE
+    private val transmissionControlType: TransmissionControlType = TransmissionControlType.UNRELIABLE
     private var pipeline: Pipeline? = null
-    private val data = ByteArray(400)
+    private val data = ByteArray(1024)
 
     private val widgetModel: FPVWidgetModel = FPVWidgetModel(
         DJISDKModel.getInstance(), ObservableInMemoryKeyedStore.getInstance(), FlatCameraModule()
@@ -424,17 +427,27 @@ open class FPVWidget @JvmOverloads constructor(
             pipeline = PipelineManager.getInstance().pipelines[pipelineID]
             pipelineConnected = true
             ToastUtils.showToast("connect to $pipelineID success")
-            executorService.execute {
-                while (pipelineConnected) {
-                    readFromPipeline()
-                }
-            }
+            startReadDataTimer()
         } else {
             ToastUtils.showToast("connect to $pipelineID fail: $error")
         }
     }
 
+    private fun startReadDataTimer() {
+        mReadFromPipelineDisposable = Flowable.interval(10,
+            TimeUnit.MILLISECONDS,
+            Schedulers.from(DJIExecutor.getExecutor()))
+            .doOnNext { readFromPipeline() }
+            .doOnCancel { LogUtils.e(logTag, "OnCancel") }
+            .doOnTerminate { LogUtils.e(logTag, "OnTerminate") }
+            .doOnError { throwable: Throwable -> LogUtils.e(logTag, "OnError:" + throwable.localizedMessage) }
+            .doOnComplete { LogUtils.e(logTag, "OnComplete") }
+            .subscribe()
+
+    }
+
     private fun disconnectPipeline() {
+        stopReadDataTimer()
         pipeline?.let {
             val error = PipelineManager.getInstance().disconnectPipeline(pipelineID, pipelineDeviceType, transmissionControlType)
             if (error == null) {
@@ -446,11 +459,16 @@ open class FPVWidget @JvmOverloads constructor(
         }
     }
 
-    private var rand = Random()
+    private fun stopReadDataTimer() {
+        mReadFromPipelineDisposable?.let {
+            mReadFromPipelineDisposable?.dispose()
+            mReadFromPipelineDisposable == null
+        }
+    }
+
     fun readFromPipeline() {
         val result = pipeline?.readData(data) ?: DataResult()
-        // val len = result.length
-        val len = rand.nextInt(4)
+        val len = result.length
         if (len < 0) {
             if (result.error.errorCode().equals(DJIPipeLineError.TIMEOUT)) {
                 ToastUtils.showToast("read timeout")
@@ -461,34 +479,40 @@ open class FPVWidget @JvmOverloads constructor(
             return
         }
 
-        ToastUtils.showToast("read $len bytes")
-        LogUtils.i("read $len bytes")
         detImageView.clearBoxes()
-        if (len > 0) {
-            // val content = String(data);
-            val sb = StringBuilder()
-            for (i in 0 until len) {
-                val x = rand.nextInt(detImageView.width)
-                val y = rand.nextInt(detImageView.height)
-                sb.append("$x,$y,200,200,0.9;")
-            }
-            sb.deleteCharAt(sb.length-1)
-            val content = sb.toString()
-            LogUtils.i(content)
-            // updateCameraName(content)
-            val boxes = content.split(";").toTypedArray()
+
+        LogUtils.i("read $len bytes")
+        assert(len > 0)
+        val content = String(data, 0, len);
+        LogUtils.i("content: $content")
+
+        val contentsByColon = content.split(":")
+        assert(contentsByColon.isNotEmpty())
+
+        val imageSize = contentsByColon[0].split(",")
+        assert(imageSize.size == 2)
+        val imageWidth = imageSize[0].toInt()
+        val imageHeight = imageSize[1].toInt()
+
+        if (contentsByColon.size == 2) {
+            val boxes = contentsByColon[1].split(";")
             for (box in boxes) {
-                val values = box.split(",").toTypedArray()
-                val x = values[0].toInt()
-                val y = values[1].toInt()
-                val w = values[2].toInt()
-                val h = values[3].toInt()
-                val prob = values[4].toDouble()
-                detImageView.addBox(x, y, w, h, prob)
+                val contentsByComma = box.split(",")
+                val x = contentsByComma[0].toInt() * detImageView.width / imageWidth
+                val y = contentsByComma[1].toInt() * detImageView.height / imageHeight
+                val w = contentsByComma[2].toInt() * detImageView.width / imageWidth
+                val h = contentsByComma[3].toInt() * detImageView.height / imageHeight
+                val prob = (contentsByComma[4].toDouble() * 100).toInt()
+                val classes = contentsByComma[5].toInt()
+                val label = LABELS[classes]
+                detImageView.addBox(x - w / 2, y - h / 2, w, h, prob, label)
             }
         }
-        detImageView.invalidate()
-        detImageView.draw()
+
+        detImageView.post(Runnable {
+            detImageView.invalidate()
+            detImageView.draw()
+        })
     }
 
     //endregion
